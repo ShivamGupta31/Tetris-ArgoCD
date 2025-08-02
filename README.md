@@ -13,11 +13,15 @@ environment {
         SCANNER_HOME=tool 'sonar-scanner'
       }
 
-stage("Sonarqube Analysis "){
-            steps{
-                withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Amazon \
-                    -Dsonar.projectKey=Amazon '''
+stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh """
+                        ${SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectName=Tetris-v1 \
+                        -Dsonar.projectKey=Tetris-v1 \
+                        -Dsonar.sources=.
+                    """
                 }
             }
         }
@@ -25,7 +29,7 @@ stage("Sonarqube Analysis "){
 
 Owasp block
 ```
-stage('OWASP FS SCAN') {
+stage('OWASP FS Scan') {
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
@@ -34,37 +38,36 @@ stage('OWASP FS SCAN') {
 ```
 
 # ARGO CD SETUP
-https://archive.eksworkshop.com/intermediate/290_argocd/install/
+https://medium.com/@chauhanhimani512/install-argocd-on-the-eks-cluster-and-configure-sync-with-the-github-manifest-repository-9e3d62e1c093
 
 # Image updater stage
 ```
- environment {
-    GIT_REPO_NAME = "Tetris-manifest"
-    GIT_USER_NAME = "Aj7Ay"
-  }
-    stage('Checkout Code') {
-      steps {
-        git branch: 'main', url: 'https://github.com/Aj7Ay/Tetris-manifest.git'
-      }
+ pipeline {
+    agent any
+    environment {
+        GIT_REPO_NAME = "Tetris-Manifest"
+        GIT_USER_NAME = "ShivamGupta31"
     }
-
-    stage('Update Deployment File') {
-      steps {
-        script {
-          withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-            // Determine the image name dynamically based on your versioning strategy
-            NEW_IMAGE_NAME = "sevenajay/tetris77:latest"
-
-            // Replace the image name in the deployment.yaml file
-            sh "sed -i 's|image: .*|image: $NEW_IMAGE_NAME|' deployment.yml"
-
-            // Git commands to stage, commit, and push the changes
-            sh 'git add deployment.yml'
-            sh "git commit -m 'Update deployment image to $NEW_IMAGE_NAME'"
-            sh "git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main"
-          }
+    stages {
+        stage('Code Checkout Manifest') {
+            steps {
+                git branch: 'main', credentialsId: 'git-cred', url: "https://github.com/${env.GIT_USER_NAME}/${env.GIT_REPO_NAME}.git"
+            }
         }
-      }
-    }
+        stage('Image Updater') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'git-token', variable: 'GITHUB_TOKEN')]) {
+                        def NEW_IMAGE_NAME = "shivamgupta31/tetrisv1:latest"
+                        sh "sed -i 's|image: .*|image: ${NEW_IMAGE_NAME}|' deployment.yml"
+                        sh 'git add deployment.yml'
+                        sh "git commit -m 'Update deployment image to ${NEW_IMAGE_NAME}' || echo 'No changes to commit'"
+                        sh "git push https://${GITHUB_TOKEN}@github.com/${env.GIT_USER_NAME}/${env.GIT_REPO_NAME}.git HEAD:main --quiet"
+                    }
+                }
+            }
+        }
+    }
+}
 
 ```
